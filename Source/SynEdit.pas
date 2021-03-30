@@ -408,6 +408,7 @@ type
     fCodeFolding: TSynCodeFolding;
     fAllFoldRanges: TSynFoldRanges;
 {$ENDIF}
+    FCaretBlockLines : Integer;
     FAlwaysShowCaret: Boolean;
     FBlockBegin: TBufferCoord;
     FBlockEnd: TBufferCoord;
@@ -564,7 +565,8 @@ type
     function GetCaretXY: TBufferCoord;
     function GetDisplayX: Integer;
     function GetDisplayY: Integer;
-    function GetDisplayXY: TDisplayCoord;
+    function GetDisplayXY: TDisplayCoord; overload;
+    function GetDisplayXY(const ACaretXY : TBufferCoord): TDisplayCoord; overload;
     function GetDisplayLineCount: Integer;
     function GetFont: TFont;
     function GetHookedCommandHandlersCount: Integer;
@@ -644,6 +646,8 @@ type
     procedure UpdateScrollBars;
     procedure WriteAddedKeystrokes(Writer: TWriter);
     procedure WriteRemovedKeystrokes(Writer: TWriter);
+    function CaretBlockLines: Integer;
+    procedure ResetCaret;
 
 {$IFDEF SYN_COMPILER_6_UP}
     procedure DoSearchFindFirstExecute(Action: TSearchFindFirst);
@@ -1409,6 +1413,8 @@ begin
     OnInserted := ListInserted;
     OnPutted := ListPutted;
   end;
+
+  FCaretBlockLines := 0;
   FFontDummy := TFont.Create;
   FUndoList := TSynEditUndoList.Create;
   FUndoList.OnAddedUndo := UndoRedoAdded;
@@ -4077,6 +4083,8 @@ begin
   end;
   if SelChanged then
     StatusChanged([scSelection]);
+
+  ResetCaret;
 end;
 
 procedure TCustomSynEdit.SetBlockEnd(Value: TBufferCoord);
@@ -4115,6 +4123,7 @@ begin
         end;
         StatusChanged([scSelection]);
       end;
+      ResetCaret;
     end;
   end;
 end;
@@ -4178,9 +4187,14 @@ begin
     Result := DisplayXY.Row;
 end;
 
-Function TCustomSynEdit.GetDisplayXY: TDisplayCoord;
+function TCustomSynEdit.GetDisplayXY: TDisplayCoord;
 begin
-  Result := BufferToDisplayPos(CaretXY);
+  Result := GetDisplayXY(CaretXY);
+end;
+
+function TCustomSynEdit.GetDisplayXY(const ACaretXY : TBufferCoord): TDisplayCoord;
+begin
+  Result := BufferToDisplayPos(ACaretXY);
   if WordWrap and FCaretAtEOL then
   begin
     if Result.Column = 1 then
@@ -4957,16 +4971,25 @@ begin
   else
   begin
     Exclude(FStateFlags, sfCaretChanged);
-    vCaretDisplay := DisplayXY;
+
+    if (ActiveSelectionMode = smColumn) then
+      vCaretDisplay := GetDisplayXY(BufferCoord(CaretX,BlockBegin.Line))
+    else
+      vCaretDisplay := DisplayXY;
+
     if WordWrap and (vCaretDisplay.Column > CharsInWindow + 1) then
       vCaretDisplay.Column := CharsInWindow + 1;
+
     vCaretPix := RowColumnToPixels(vCaretDisplay);
+
     CX := vCaretPix.X + FCaretOffset.X;
     CY := vCaretPix.Y + FCaretOffset.Y;
+
     iClientRect := GetClientRect;
     Inc(iClientRect.Left, FGutterWidth);
     if (CX >= iClientRect.Left) and (CX < iClientRect.Right)
-      and (CY >= iClientRect.Top) and (CY < iClientRect.Bottom) then
+//      and (CY >= iClientRect.Top) and (CY < iClientRect.Bottom)
+      then
     begin
       SetCaretPos(CX, CY);
       ShowCaret;
@@ -7258,6 +7281,11 @@ begin
   end;
 end;
 
+function TCustomSynEdit.CaretBlockLines : Integer;
+begin
+  Result := BlockEnd.Line - BlockBegin.Line +1;
+end;
+
 procedure TCustomSynEdit.InitializeCaret;
 var
   ct: TSynEditCaretType;
@@ -7298,7 +7326,12 @@ begin
     else
     begin // ctVerticalLine
       cw := 2;
-      ch := FTextHeight - 2;
+
+      if (ActiveSelectionMode = smColumn) then
+        ch := (FTextHeight * CaretBlockLines)
+      else
+        ch := FTextHeight-2;
+
       FCaretOffset := Point(-1, 0);
     end;
   end;
@@ -7308,6 +7341,18 @@ begin
   begin
     CreateCaret(Handle, 0, cw, ch);
     UpdateCaret;
+  end;
+
+  FCaretBlockLines := CaretBlockLines;
+end;
+
+procedure TCustomSynEdit.ResetCaret;
+begin
+  if ((ActiveSelectionMode = smColumn) and (FCaretBlockLines <> CaretBlockLines)) or
+     ((ActiveSelectionMode <> smColumn) and (FCaretBlockLines > 1)) then
+  begin
+    DestroyCaret;
+    InitializeCaret;
   end;
 end;
 
@@ -8556,6 +8601,7 @@ begin
   begin
     FSelectionMode := Value;
     ActiveSelectionMode := Value;
+    ResetCaret;
   end;
 end;
 
@@ -8569,6 +8615,7 @@ begin
     if SelAvail then
       InvalidateSelection;
     StatusChanged([scSelection]);
+    ResetCaret;
   end;
 end;
 
