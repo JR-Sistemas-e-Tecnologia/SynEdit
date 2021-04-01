@@ -8487,14 +8487,22 @@ begin
     else
     begin
       // find next Word-break-char if current char is an IdentChar
-      if IsIdentChar(Line[CX]) then
-        CX := StrScanForCharInCategory(Line, CX, IsWordBreakChar);
-      // if Word-break-char found, find the next IdentChar
-      if CX > 0 then
-        CX := StrScanForCharInCategory(Line, CX, IsIdentChar);
-      // if one of those failed just position at the end of the line
-      if CX = 0 then
-        CX := LineLen + 1;
+      if CX <= 0 then
+        CX := 1;
+
+      if (CX = 1) and (IsIdentChar(Line[CX])) then
+        CX := 1
+      else
+      begin
+        if IsIdentChar(Line[CX]) then
+          CX := StrScanForCharInCategory(Line, CX, IsWordBreakChar);
+        // if Word-break-char found, find the next IdentChar
+        if CX > 0 then
+          CX := StrScanForCharInCategory(Line, CX, IsIdentChar);
+        // if one of those failed just position at the end of the line
+        if CX = 0 then
+          CX := LineLen + 1;
+      end;
     end;
   end;
   Result.Char := CX;
@@ -10896,13 +10904,32 @@ begin
     Line := Lines[XY.Line - 1];
     if (Length(Line) > 0) and
        ((XY.Char >= Low(Line)) and (XY.Char <= High(Line))) and
-       IsIdentChar(Line[XY.Char]) then
+       (
+        (IsIdentChar(Line[XY.Char])) or
+        (
+         (XY.Char > Low(Line)) and
+         (not IsIdentChar(Line[XY.Char])) and
+         (IsIdentChar(Line[XY.Char-1]))
+        )
+       ) then
     begin
        Start := XY.Char;
+
+       //correction to recognize the word when the cursor is at the end of it.
+       if (XY.Char > Low(Line)) and
+         (not IsIdentChar(Line[XY.Char])) and
+         (IsIdentChar(Line[XY.Char-1])) then
+         Dec(Start);
+
        while (Start > Low(Line)) and IsIdentChar(Line[Start - 1]) do
           Dec(Start);
 
-       Stop := XY.Char + 1;
+       Stop := XY.Char;
+
+       //correction to recognize the word when the cursor is at the end of it.
+       if (IsIdentChar(Line[XY.Char])) then
+         inc(Stop);
+
        while (Stop <= High(Line)) and IsIdentChar(Line[Stop]) do
           Inc(Stop);
 
