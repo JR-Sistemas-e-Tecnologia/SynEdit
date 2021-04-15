@@ -10901,7 +10901,7 @@ begin
   Result := '';
   if (XY.Line >= 1) and (XY.Line <= Lines.Count) then
   begin
-    Line := Lines[XY.Line - 1];
+    Line := Lines[XY.Line - 1]+#13;
     if (Length(Line) > 0) and
        ((XY.Char >= Low(Line)) and (XY.Char <= High(Line))) and
        (

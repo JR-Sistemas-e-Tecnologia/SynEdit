@@ -6,7 +6,7 @@ package SynEdit_D;
 {$ALIGN 8}
 {$ASSERTIONS ON}
 {$BOOLEVAL OFF}
-{$DEBUGINFO ON}
+{$DEBUGINFO OFF}
 {$EXTENDEDSYNTAX ON}
 {$IMPORTEDDATA ON}
 {$IOCHECKS ON}
@@ -33,7 +33,8 @@ package SynEdit_D;
 
 requires
   designide,
-  SynEdit_R;
+  dbrtl,
+  vcldb;
 
 contains
   SynEditReg in '..\..\Source\SynEditReg.pas',
